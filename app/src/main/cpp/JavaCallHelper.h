@@ -15,13 +15,16 @@ public:
     JavaCallHelper(JavaVM *javaVM_, JNIEnv *env_, jobject instance_);
     ~JavaCallHelper();
 
-    void onPrepare(int threadMode);
+    void onPrepared(int threadMode);
+
+    void onError(int threadMode, int errorCode);
 
 private:
     JavaVM *javaVM;
     JNIEnv *env;
     jobject instance;
     jmethodID jmd_prepared;
+    jmethodID jmd_onError;
 
 };
 

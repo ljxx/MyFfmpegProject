@@ -1,11 +1,15 @@
 package com.ylx.myffmpegproject;
 
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+
 /**
  * createTime：2020-03-15  13:39
  * author：YLiXiang
  * description：
  */
-public class NEPlay {
+public class NEPlay implements SurfaceHolder.Callback {
     static {
         System.loadLibrary("native-lib");
     }
@@ -13,6 +17,8 @@ public class NEPlay {
 
     //直播地址或媒体文件路径
     private String dataSource;
+
+    private SurfaceHolder surfaceHolder;
 
 
     public void setDataSource(String dataSource) {
@@ -46,6 +52,44 @@ public class NEPlay {
     }
 
     MyErrorListener errorListener;
+
+    public void setSurfaceView(SurfaceView surfaceView) {
+        if(null != surfaceHolder) {
+            surfaceHolder.removeCallback(this);
+        }
+        this.surfaceHolder = surfaceView.getHolder();
+        surfaceHolder.addCallback(this);
+    }
+
+    /**
+     * 画布创建回调
+     * @param holder
+     */
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {
+
+    }
+
+    /**
+     * 画布刷新
+     * @param holder
+     * @param format
+     * @param width
+     * @param height
+     */
+    @Override
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        setSurfaceNative(holder.getSurface());
+    }
+
+    /**
+     * 画布销毁
+     * @param holder
+     */
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {
+
+    }
 
     interface MyErrorListener {
         void onError(int errorCode);
@@ -82,4 +126,6 @@ public class NEPlay {
     private native void prepareNative(String dataSource);
 
     private native void startNative();
+
+    private native void setSurfaceNative(Surface surface);
 }

@@ -29,14 +29,17 @@ public class MainActivity extends AppCompatActivity {
 
         surfaceView = findViewById(R.id.surfaceView);
         player = new NEPlay();
+        player.setSurfaceView(surfaceView);
         player.setDataSource(new File(Environment.getExternalStorageDirectory() + File.separator + "demo.mp4").getAbsolutePath());
         player.setErrorListener(new NEPlay.MyErrorListener() {
             @Override
-            public void onError(int errorCode) {
-                switch (errorCode) {
-                    case -1:
-                        break;
-                }
+            public void onError(final int errorCode) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this, "出错了，错误码：" + errorCode, Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         });
 

@@ -31,7 +31,10 @@ public:
 
     void _prepare();
 
+    void _start();
+
     void start();
+    void setRenderCallback(RenderCallback renderCallback);
 
 private:
     JavaCallHelper *javaCallHelper = 0;
@@ -39,6 +42,10 @@ private:
     VideoChannel *videoChannel = 0;
     char *dataSource = 0;
     pthread_t pid_prepare;
+    pthread_t pid_start;
+    bool isPlaying;
+    AVFormatContext *formatContext = 0;
+    RenderCallback renderCallback;
 
 };
 

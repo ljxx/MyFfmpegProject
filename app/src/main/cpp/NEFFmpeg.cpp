@@ -42,10 +42,18 @@ NEFFmpeg::~NEFFmpeg() {
  * @param args
  * @return
  */
-void *task_prepare(void* args) {
+void *task_prepare(void *args) {
 
     NEFFmpeg *ffmpeg = static_cast<NEFFmpeg *>(args);
     ffmpeg->_prepare();
+
+    return 0; //一定一定一定要返回0！！！ 防止找不到错误
+}
+
+void *task_start(void *args) {
+
+    NEFFmpeg *ffmpeg = static_cast<NEFFmpeg *>(args);
+    ffmpeg->_start();
 
     return 0; //一定一定一定要返回0！！！ 防止找不到错误
 }
@@ -69,14 +77,14 @@ void NEFFmpeg::prepare() {
 void NEFFmpeg::_prepare() {
 
     //0.5 AVFormatContext **ps
-    AVFormatContext *formatContext = avformat_alloc_context();
+    formatContext = avformat_alloc_context();
     AVDictionary *dictionary = 0;
     av_dict_set(&dictionary, "timeout", "10000000", 0); //设置超时时间为10秒，这里的单位是微秒
 
     //1、打开媒体
     int ret = avformat_open_input(&formatContext, dataSource, 0, &dictionary);
     av_dict_free(&dictionary);
-    if(ret) {
+    if (ret) {
         LOGE("打开媒体失败：%s", av_err2str(ret));
         //失败 ，回调给java
         //        LOGE("打开媒体失败：%s", av_err2str(ret));
@@ -89,7 +97,9 @@ void NEFFmpeg::_prepare() {
         // 2 反射Java 方法 （成员/静态）
         // 3 子线程反射
 
-//        javaCallHelper->onError(ret);
+        if (javaCallHelper) {
+            javaCallHelper->onError(THREAD_CHILD, FFMPEG_CAN_NOT_OPEN_URL);
+        }
 
         return;
     }
@@ -99,7 +109,11 @@ void NEFFmpeg::_prepare() {
     if (ret < 0) {
         LOGE("查找媒体中的流信息失败：%s", av_err2str(ret));
         //TODO 作业:反射通知java
+        if (javaCallHelper) {
+            javaCallHelper->onError(THREAD_CHILD, FFMPEG_CAN_NOT_FIND_STREAMS);
+        }
         return;
+
     }
 
     //这里的 i 就是后面 166行的 packet->stream_index
@@ -110,19 +124,31 @@ void NEFFmpeg::_prepare() {
         AVCodecParameters *codecParameters = stream->codecpar;
         //5 通过参数中的id（编解码的方式），来查找当前流的解码器
         AVCodec *codec = avcodec_find_decoder(codecParameters->codec_id);
-        if(!codec) {
+        if (!codec) {
             LOGE("查找当前流的解码器失败");
             //TODO 作业:反射通知java
+            if (javaCallHelper) {
+                javaCallHelper->onError(THREAD_CHILD, FFMPEG_FIND_DECODER_FAIL);
+            }
             return;
         }
         //6 创建解码器上下文
         AVCodecContext *codecContext = avcodec_alloc_context3(codec);
+        if (!codecContext) {//2019.8.14 add.
+            LOGE("创建解码器上下文失败");
+            if (javaCallHelper) {
+                javaCallHelper->onError(THREAD_CHILD, FFMPEG_ALLOC_CODEC_CONTEXT_FAIL);
+            }
+        }
+
         //7 设置解码器上下文的参数
         ret = avcodec_parameters_to_context(codecContext, codecParameters);
         if (ret < 0) {
             //TODO 作业:反射通知java
             LOGE("设置解码器上下文的参数失败：%s", av_err2str(ret));
-            return;
+            if (javaCallHelper) {
+                javaCallHelper->onError(THREAD_CHILD, FFMPEG_CODEC_CONTEXT_PARAMETERS_FAIL);
+            }
         }
 
         //8 打开解码器
@@ -130,32 +156,91 @@ void NEFFmpeg::_prepare() {
         if (ret) {
             //TODO 作业:反射通知java
             LOGE("打开解码器失败：%s", av_err2str(ret));
+            if (javaCallHelper) {
+                javaCallHelper->onError(THREAD_CHILD, FFMPEG_OPEN_DECODER_FAIL);
+            }
             return;
+
         }
         //判断流类型（音频还是视频？）
-        if(codecParameters->codec_type == AVMEDIA_TYPE_AUDIO) {
+        if (codecParameters->codec_type == AVMEDIA_TYPE_AUDIO) {
             //音频
-            audioChannel = new AudioChannel();
-        } else if(codecParameters->codec_type == AVMEDIA_TYPE_VIDEO) {
+            audioChannel = new AudioChannel(i, codecContext);
+        } else if (codecParameters->codec_type == AVMEDIA_TYPE_VIDEO) {
             //视频
-            videoChannel = new VideoChannel();
+            videoChannel = new VideoChannel(i, codecContext);
+            videoChannel->setRenderCallback(renderCallback);
         }
     } //end for
 
-    if(!audioChannel && !videoChannel) {
+    if (!audioChannel && !videoChannel) {
         //既没有音频也没有视频
         //TODO 作业:反射通知java
         LOGE("没有音视频");
+        if (javaCallHelper) {
+            javaCallHelper->onError(THREAD_CHILD, FFMPEG_NOMEDIA);
+        }
         return;
+
     }
 
     //准备好了，反射通知java
-    if(javaCallHelper) {
-        javaCallHelper->onPrepare(THREAD_CHILD);
+    if (javaCallHelper) {
+        javaCallHelper->onPrepared(THREAD_CHILD);
     }
 
 }
 
+/**
+ * 开始播放
+ */
 void NEFFmpeg::start() {
+    isPlaying = 1;
+    if (videoChannel) {
+        videoChannel->start();
+    }
+    pthread_create(&pid_start, 0, task_start, this);
+}
 
+/**
+ * 真正执行解码播放
+ */
+void NEFFmpeg::_start() {
+    while (isPlaying) {
+        AVPacket *packet = av_packet_alloc();
+        int ret = av_read_frame(formatContext, packet);
+        if (!ret) { //成功
+            //要判断流类型，是视频还是音频
+            if (videoChannel && packet->stream_index == videoChannel->id) {
+                //需要一个线程安全的队列
+                //往视频编码数据包队列中添加数据
+                videoChannel->packets.push(packet);
+            } else if (audioChannel && packet->stream_index == audioChannel->id) {
+                //往音频编码数据包队列中添加数据
+//                audioChannel->packets.push(packet);
+            }
+        } else if (ret == AVERROR_EOF) {
+            //表示读完了
+            //要考虑读完了，是否播放完读情况
+            // TODO
+        } else {
+            //失败
+            //TODO 作业:反射通知java
+            LOGE("读取音频视频数据包失败");
+            if(javaCallHelper) {
+                javaCallHelper->onError(THREAD_CHILD, FFMPEG_READ_PACKETS_FAIL);
+            }
+            break;
+        } //end if
+    } //end while
+
+    isPlaying = 0;
+
+    //停止解码播放（音频和视频）
+    videoChannel->stop();
+    audioChannel->stop();
+}
+
+void NEFFmpeg::setRenderCallback(RenderCallback renderCallback) {
+    this->renderCallback = renderCallback;
 }

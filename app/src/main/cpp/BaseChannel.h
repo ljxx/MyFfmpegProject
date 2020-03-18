@@ -5,8 +5,10 @@
 #ifndef MYFFMPEGPROJECT_BASECHANNEL_H
 #define MYFFMPEGPROJECT_BASECHANNEL_H
 
-extern "C" {
+#include "safe_queue.h"
 
+extern "C" {
+#include <libavcodec/avcodec.h>
 };
 
 /**
@@ -14,14 +16,40 @@ extern "C" {
  */
 class BaseChannel {
 public:
-    BaseChannel() {
-
+    BaseChannel(int id, AVCodecContext *codecContext) : id(id), codecContext(codecContext) {
+        packets.setReleaseCallback(releaseAVPacket);
+        frames.setReleaseCallback(releaseAVFrame);
     }
 
     //虚函数，父类的析构函数，一定要virtual，定义虚函数
     virtual ~BaseChannel() {
-
+        packets.clear();
+        frames.clear();
     }
+
+    static void releaseAVPacket(AVPacket **packet) {
+        if(packet) {
+            av_packet_free(packet);
+            *packet = 0; //指针解引用
+        }
+    }
+
+    static void releaseAVFrame(AVFrame **frame) {
+        if(frame) {
+            av_frame_free(frame);
+            *frame = 0; //指针解引用
+        }
+    }
+
+    //纯虚函数（抽象方法）
+    virtual void stop() = 0;
+    virtual void start() = 0;
+
+    SafeQueue<AVPacket *> packets;
+    SafeQueue<AVFrame *> frames;
+    int id;
+    bool isPlaying = 0;
+    AVCodecContext *codecContext;
 };
 
 #endif //MYFFMPEGPROJECT_BASECHANNEL_H
