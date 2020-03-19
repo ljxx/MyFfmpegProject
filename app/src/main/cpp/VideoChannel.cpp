@@ -80,6 +80,16 @@ void VideoChannel::video_decode() {
 
         //ret == 0 数据收发正常，成功获取到了解码后的视频原始数据
         //对frame进行处理（渲染播放）直接写？
+        /**
+         * 内存泄漏2
+         * 控制frames队列
+         * 这里用while,而不是if，是防止上面取的数据丢帧
+         */
+        while (isPlaying && frames.size() > 100) {
+            av_usleep(10* 1000);
+            continue;
+        }
+
         frames.push(frame);
 
     } //end while

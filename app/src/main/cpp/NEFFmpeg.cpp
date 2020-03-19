@@ -212,6 +212,16 @@ void NEFFmpeg::start() {
  */
 void NEFFmpeg::_start() {
     while (isPlaying) {
+
+        /**
+         * 内存泄漏1
+         * 控制packets队列
+         */
+        if(videoChannel->packets.size() > 100) {
+            av_usleep(10 * 1000);
+            continue;
+        }
+
         AVPacket *packet = av_packet_alloc();
         int ret = av_read_frame(formatContext, packet);
         if (!ret) { //成功
