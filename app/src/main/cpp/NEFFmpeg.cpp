@@ -168,7 +168,12 @@ void NEFFmpeg::_prepare() {
             audioChannel = new AudioChannel(i, codecContext);
         } else if (codecParameters->codec_type == AVMEDIA_TYPE_VIDEO) {
             //视频
-            videoChannel = new VideoChannel(i, codecContext);
+            AVRational fram_rate = stream->avg_frame_rate;
+//            int fps = fram_rate.num/fram_rate.den;
+            int fps = av_q2d(fram_rate);
+
+
+            videoChannel = new VideoChannel(i, codecContext, fps);
             videoChannel->setRenderCallback(renderCallback);
         }
     } //end for

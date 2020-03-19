@@ -4,8 +4,8 @@
 
 #include "VideoChannel.h"
 
-VideoChannel::VideoChannel(int id, AVCodecContext *codecContext) : BaseChannel(id, codecContext) {
-
+VideoChannel::VideoChannel(int id, AVCodecContext *codecContext, int fps) : BaseChannel(id, codecContext, fps) {
+    this->fps = fps;
 }
 
 VideoChannel::~VideoChannel() {
@@ -97,6 +97,11 @@ void VideoChannel::video_play() {
     //给dst_data dst_linesize 申请内存
     av_image_alloc(dst_data,dst_linesize,codecContext->width, codecContext->height, AV_PIX_FMT_RGBA, 1);
 
+    //根据fps（传入的流的平均帧率来控制每一帧的延时时间
+    //sleep : fps ->时间
+    //单位：秒
+    double delay_time_per_frame = 1.0/fps;
+
     while (isPlaying) {
         int ret = frames.pop(frame);
         if(!isPlaying) {
@@ -110,6 +115,15 @@ void VideoChannel::video_play() {
 
         //取到yuv原始数据，下面要进行格式转换
         sws_scale(sws_ctx, frame->data, frame->linesize, 0, codecContext->height, dst_data, dst_linesize);
+
+        //进行休眠
+        //每一帧还有自己的额外延时时间
+
+        ///extra_delay = repeat_pict / (2*fps)
+        double extra_delay = frame->repeat_pict / (2*fps);
+        double  real_delay = delay_time_per_frame + extra_delay;
+        //单位是：微秒
+        av_usleep(real_delay * 1000000);
 
         //dst_data：AV_PIX_FMT_RGBA 目标格式对数据
         //渲染到屏幕中, 需要回调出去->native-lib里
