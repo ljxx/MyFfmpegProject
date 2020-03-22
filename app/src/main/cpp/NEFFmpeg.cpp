@@ -201,8 +201,13 @@ void NEFFmpeg::_prepare() {
  */
 void NEFFmpeg::start() {
     isPlaying = 1;
+    //视频
     if (videoChannel) {
         videoChannel->start();
+    }
+    //音频
+    if(audioChannel) {
+        audioChannel->start();
     }
     pthread_create(&pid_start, 0, task_start, this);
 }
@@ -232,7 +237,7 @@ void NEFFmpeg::_start() {
                 videoChannel->packets.push(packet);
             } else if (audioChannel && packet->stream_index == audioChannel->id) {
                 //往音频编码数据包队列中添加数据
-//                audioChannel->packets.push(packet);
+                audioChannel->packets.push(packet);
             }
         } else if (ret == AVERROR_EOF) {
             //表示读完了

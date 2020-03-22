@@ -4,7 +4,7 @@
 
 #include "VideoChannel.h"
 
-VideoChannel::VideoChannel(int id, AVCodecContext *codecContext, int fps) : BaseChannel(id, codecContext, fps) {
+VideoChannel::VideoChannel(int id, AVCodecContext *codecContext, int fps) : BaseChannel(id, codecContext) {
     this->fps = fps;
 }
 
