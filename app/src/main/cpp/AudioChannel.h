@@ -37,6 +37,7 @@ public:
     int out_buffers_size;
 
 private:
+    SwrContext *swrContext;
     pthread_t pid_audio_decode;
     pthread_t pid_audio_play;
     //引擎object
