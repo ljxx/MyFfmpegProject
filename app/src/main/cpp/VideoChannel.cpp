@@ -4,8 +4,41 @@
 
 #include "VideoChannel.h"
 
-VideoChannel::VideoChannel(int id, AVCodecContext *codecContext, int fps) : BaseChannel(id, codecContext) {
+/**
+ * 丢包（AVPacket）
+ * @param q
+ */
+void dropAVPacket(queue<AVPacket *> &q) {
+    while (!q.empty()) {
+        AVPacket *avPacket = q.front();
+        // I 帧，B 帧， p 帧
+        //不能丢I帧
+        if(avPacket->flags != AV_PKT_FLAG_KEY) {
+            //丢弃非I帧
+            BaseChannel::releaseAVPacket(&avPacket);
+            q.pop();
+        } else {
+            break;
+        }
+    }
+}
+
+
+/**
+ * 丢包（AVFrame）
+ * @param q
+ */
+void dropAVFrame(queue<AVFrame *> &q) {
+    if (!q.empty()) {
+        AVFrame *avFrame = q.front();
+        BaseChannel::releaseAVFrame(&avFrame);
+        q.pop();
+    }
+}
+VideoChannel::VideoChannel(int id, AVCodecContext *codecContext, int fps, AVRational time_base) : BaseChannel(id, codecContext, time_base) {
     this->fps = fps;
+    packets.setSyncHandle(dropAVPacket);
+    frames.setSyncHandle(dropAVFrame);
 }
 
 VideoChannel::~VideoChannel() {
@@ -133,7 +166,46 @@ void VideoChannel::video_play() {
         double extra_delay = frame->repeat_pict / (2*fps);
         double  real_delay = delay_time_per_frame + extra_delay;
         //单位是：微秒
-        av_usleep(real_delay * 1000000);
+//        av_usleep(real_delay * 1000000); //直接以视频的播放规则播放
+        //不能了，需要根据音频的播放时间来判断
+        //获取视频的播放时间
+        double video_time = frame->best_effort_timestamp * av_q2d(time_base); //时间单位
+
+        //音视频同步永远都是你追我赶丢状态
+        if(!audioChannel) {
+            //没有音频（类似gif）
+            av_usleep(real_delay * 1000000);
+        } else{
+            double audioTime = audioChannel->audio_time;
+            //获取音视频播放的时间差
+            double time_diff = video_time - audioTime;
+            if(time_diff > 0) {
+                LOGE("视频比音频快：%lf", time_diff);
+                //视频比音频快，需要等音频(sleep)
+                //自然播放状态，没有人为干预的情况下time_diff不会很大
+                //但是如果有拖动seek后，time_diff可能会比较大， 导致视频休眠太久
+                if(time_diff > 1) {
+                    //等音频慢慢赶上 延时2倍
+                    av_usleep((real_delay * 2) * 1000000);
+                } else {
+                    av_usleep((real_delay + time_diff) * 1000000);
+                }
+            } else if(time_diff < 0) {
+                LOGE("音频比视频快：%lf", fabs(time_diff));
+                //音频比视频快, 追音频(尝试丢视频包)
+                //视频包：packets 和 frames
+                if(fabs(time_diff) >= 0.05) { //fabs 取绝对值
+                    //时间差如果大于0.05，有明显等延迟感
+                    //丢包：要操作队列中数据！一定要小心！
+                    packets.sync();
+//                    frames.sync();
+                    continue;
+                }
+
+            } else {
+                LOGE("音视频完美同步了！");
+            }
+        }
 
         //dst_data：AV_PIX_FMT_RGBA 目标格式对数据
         //渲染到屏幕中, 需要回调出去->native-lib里
@@ -153,4 +225,8 @@ void VideoChannel::video_play() {
 
 void VideoChannel::setRenderCallback(RenderCallback renderCallback) {
     this->renderCallback = renderCallback;
+}
+
+void VideoChannel::setAudioChannel(AudioChannel *audioChannel) {
+    this->audioChannel = audioChannel;
 }

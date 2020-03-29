@@ -15,6 +15,8 @@ template<typename T>
 class SafeQueue {
 
     typedef void (*ReleaseCallback)(T *);
+    typedef void (*SyncHandle)(queue<T> &);
+
 public:
     SafeQueue() {
         pthread_mutex_init(&mutex, 0); //动态初始化
@@ -129,13 +131,30 @@ public:
         this->releaseCallback = releaseCallback;
     }
 
+    void setSyncHandle(SyncHandle syncHandle) {
+        this->syncHandle = syncHandle;
+    }
+
+    /**
+     * 同步操作
+     */
+    void sync() {
+        //先锁起来
+        pthread_mutex_lock(&mutex);
+
+        syncHandle(q);
+
+        //解锁
+        pthread_mutex_unlock(&mutex);
+    }
+
 private:
     queue<T> q;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     int work; //标记队列是否工作
     ReleaseCallback releaseCallback;
-
+    SyncHandle syncHandle;
 };
 
 #endif //MYFFMPEGPROJECT_SAFE_QUEUE_H

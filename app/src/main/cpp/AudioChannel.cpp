@@ -4,7 +4,7 @@
 
 #include "AudioChannel.h"
 
-AudioChannel::AudioChannel(int id, AVCodecContext *codecContext) : BaseChannel(id, codecContext) {
+AudioChannel::AudioChannel(int id, AVCodecContext *codecContext, AVRational time_base) : BaseChannel(id, codecContext, time_base) {
     //缓冲区大小如何定？
     out_channels = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_STEREO);
     out_sampleSize = av_get_bytes_per_sample(AV_SAMPLE_FMT_S16);
@@ -14,7 +14,7 @@ AudioChannel::AudioChannel(int id, AVCodecContext *codecContext) : BaseChannel(i
     out_buffers = static_cast<uint8_t *>(malloc(out_buffers_size));
     memset(out_buffers, 0, out_buffers_size);
 
-    *swrContext = swr_alloc_set_opts(0, AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16,
+    swrContext = swr_alloc_set_opts(0, AV_CH_LAYOUT_STEREO, AV_SAMPLE_FMT_S16,
                                                 out_sampleRate, codecContext->channel_layout,
                                                 codecContext->sample_fmt,
                                                 codecContext->sample_rate, 0, 0);
@@ -279,6 +279,12 @@ int AudioChannel::getPCM() {
 
         //获取swr_convert转换后 out_samples个 *2 （16位） *2 （双声道）
         pcm_data_size = out_samples * out_sampleSize * out_channels;
+//        av_q2d(time_base); //转换
+        //获取音频时间 audio_time 需要被VideoChannel获取
+        audio_time = frame->best_effort_timestamp * av_q2d(time_base); //时间单位
+
+
+
         break;
     } //end if
     releaseAVFrame(&frame);

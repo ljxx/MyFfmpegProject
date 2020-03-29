@@ -17,7 +17,7 @@ extern "C" {
  */
 class BaseChannel {
 public:
-    BaseChannel(int id, AVCodecContext *codecContext) : id(id), codecContext(codecContext) {
+    BaseChannel(int id, AVCodecContext *codecContext, AVRational time_base) : id(id), codecContext(codecContext), time_base(time_base) {
         packets.setReleaseCallback(releaseAVPacket);
         frames.setReleaseCallback(releaseAVFrame);
     }
@@ -51,6 +51,8 @@ public:
     int id;
     bool isPlaying = 0;
     AVCodecContext *codecContext;
+    AVRational time_base;
+    double audio_time;
 };
 
 #endif //MYFFMPEGPROJECT_BASECHANNEL_H
