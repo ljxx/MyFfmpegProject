@@ -117,3 +117,11 @@ Java_com_ylx_myffmpegproject_NEPlay_stopNative(JNIEnv *env, jobject thiz) {
         ffmpeg->stop();
     }
 }
+extern "C"
+JNIEXPORT jint JNICALL
+Java_com_ylx_myffmpegproject_NEPlay_getDurationNative(JNIEnv *env, jobject thiz) {
+    if(ffmpeg) {
+        return ffmpeg->getDuration();
+    }
+    return 0;
+}

@@ -49,6 +49,10 @@ public class NEPlay implements SurfaceHolder.Callback {
         releaseNative();
     }
 
+    public int getDuration() {
+        return getDurationNative();
+    }
+
     /**
      * 给JNI回调
      * @param code 通过JNI反射传递过来
@@ -56,6 +60,12 @@ public class NEPlay implements SurfaceHolder.Callback {
     public void onError(int code) {
         if(errorListener != null) {
             errorListener.onError(code);
+        }
+    }
+
+    public void onProgress(int progress) {
+        if(onProgressListener != null) {
+            onProgressListener.onProgress(progress);
         }
     }
 
@@ -136,7 +146,15 @@ public class NEPlay implements SurfaceHolder.Callback {
     }
 
     private OnpreparedListener onpreparedListener;
+    private OnProgressListener onProgressListener;
 
+    public interface OnProgressListener {
+        void onProgress(int progress);
+    }
+
+    public void setOnProgressListener(OnProgressListener onProgressListener) {
+        this.onProgressListener = onProgressListener;
+    }
 
     private native void prepareNative(String dataSource);
 
@@ -147,4 +165,6 @@ public class NEPlay implements SurfaceHolder.Callback {
     private native void releaseNative();
 
     private native void stopNative();
+
+    private native int getDurationNative();
 }

@@ -143,6 +143,9 @@ void NEFFmpeg::_prepare() {
 
     }
 
+    //拿到播放总时长
+    duration = formatContext->duration/AV_TIME_BASE;
+
     //这里的 i 就是后面 166行的 packet->stream_index
     for (int i = 0; i < formatContext->nb_streams; ++i) {
         //3获取媒体流（音频或视频）
@@ -195,7 +198,7 @@ void NEFFmpeg::_prepare() {
         //判断流类型（音频还是视频？）
         if (codecParameters->codec_type == AVMEDIA_TYPE_AUDIO) {
             //音频
-            audioChannel = new AudioChannel(i, codecContext, time_base);
+            audioChannel = new AudioChannel(i, codecContext, time_base, javaCallHelper);
         } else if (codecParameters->codec_type == AVMEDIA_TYPE_VIDEO) {
             //视频
             AVRational fram_rate = stream->avg_frame_rate;
@@ -203,7 +206,7 @@ void NEFFmpeg::_prepare() {
             int fps = av_q2d(fram_rate);
 
 
-            videoChannel = new VideoChannel(i, codecContext, fps, time_base);
+            videoChannel = new VideoChannel(i, codecContext, fps, time_base, javaCallHelper);
             videoChannel->setRenderCallback(renderCallback);
         }
     } //end for
@@ -337,4 +340,12 @@ void NEFFmpeg::stop() {
 //    if(audioChannel) {
 //        audioChannel->stop();
 //    }
+}
+
+/**
+ * 获取播放总时长
+ * @return
+ */
+int NEFFmpeg::getDuration() const {
+    return duration;
 }

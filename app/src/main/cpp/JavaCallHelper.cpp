@@ -16,6 +16,7 @@ JavaCallHelper::JavaCallHelper(JavaVM *javaVM_, JNIEnv *env_, jobject instance_)
     //    xx\app\build\intermediates\classes\debug>javap -s com.netease.jnitest.Helper
     jmd_prepared = env->GetMethodID(clazz, "onPrepared", "()V");
     jmd_onError = env->GetMethodID(clazz, "onError", "(I)V");
+    jmd_onProgress = env->GetMethodID(clazz, "onProgress", "(I)V");
 }
 
 JavaCallHelper::~JavaCallHelper() {
@@ -48,6 +49,20 @@ void JavaCallHelper::onError(int threadMode, int errorCodde) {
         JNIEnv *env_child;
         javaVM->AttachCurrentThread(&env_child, 0);
         env_child->CallVoidMethod(instance, jmd_onError, errorCodde);
+        javaVM->DetachCurrentThread();
+    }
+}
+
+void JavaCallHelper::onProgress(int threadMode, int progress) {
+    if (threadMode == THREAD_MAIN) {
+        //主线程
+        env->CallVoidMethod(instance, jmd_onProgress);
+    } else {
+        //子线程
+        //当前子线程的JNIEnv
+        JNIEnv *env_child;
+        javaVM->AttachCurrentThread(&env_child, 0);
+        env_child->CallVoidMethod(instance, jmd_onProgress, progress);
         javaVM->DetachCurrentThread();
     }
 }

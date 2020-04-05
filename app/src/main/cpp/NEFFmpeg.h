@@ -53,6 +53,13 @@ private:
     bool isPlaying;
     AVFormatContext *formatContext = 0;
     RenderCallback renderCallback;
+    int duration;
+public:
+    int getDuration() const;
+
+public:
+    void setDuration(int duration);
+    //总播放时长
 
 };
 
