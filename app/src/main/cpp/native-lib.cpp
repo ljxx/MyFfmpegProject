@@ -31,13 +31,13 @@ jint JNI_OnLoad(JavaVM *vm, void *reserved) {
 void renderFrame(uint8_t *src_data, int src_lineSize, int width, int height) {
     // TODO
     pthread_mutex_lock(&mutex);
-    if(!window) {
+    if (!window) {
         pthread_mutex_unlock(&mutex);
         return;
     }
     ANativeWindow_setBuffersGeometry(window, width, height, WINDOW_FORMAT_RGBA_8888);
     ANativeWindow_Buffer window_buffer;
-    if(ANativeWindow_lock(window, &window_buffer, 0)) {
+    if (ANativeWindow_lock(window, &window_buffer, 0)) {
         ANativeWindow_release(window);
         window = 0;
         pthread_mutex_unlock(&mutex);
@@ -45,7 +45,7 @@ void renderFrame(uint8_t *src_data, int src_lineSize, int width, int height) {
     }
     //把buffer中的数据进行赋值（修改）
     uint8_t *dst_data = static_cast<uint8_t *>(window_buffer.bits);
-    int dst_linesize = window_buffer.stride*4; //ARGB
+    int dst_linesize = window_buffer.stride * 4; //ARGB
     //逐行拷贝
     for (int i = 0; i < window_buffer.height; ++i) {
         memcpy(dst_data + i * dst_linesize, src_data + i * src_lineSize, dst_linesize);
@@ -57,7 +57,8 @@ void renderFrame(uint8_t *src_data, int src_lineSize, int width, int height) {
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_ylx_myffmpegproject_NEPlay_prepareNative(JNIEnv *env, jobject instance, jstring data_source) {
+Java_com_ylx_myffmpegproject_NEPlay_prepareNative(JNIEnv *env, jobject instance,
+                                                  jstring data_source) {
     // TODO: implement prepareNative()
 
     const char *dataSource = env->GetStringUTFChars(data_source, 0);
@@ -74,7 +75,7 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_ylx_myffmpegproject_NEPlay_startNative(JNIEnv *env, jobject thiz) {
     // TODO: implement startNative()
-    if(ffmpeg) {
+    if (ffmpeg) {
         ffmpeg->start();
     }
 }
@@ -86,7 +87,7 @@ Java_com_ylx_myffmpegproject_NEPlay_setSurfaceNative(JNIEnv *env, jobject instan
     pthread_mutex_lock(&mutex);
 
     //先释放之前对显示窗口
-    if(window) {
+    if (window) {
         ANativeWindow_release(window);
         window = 0;
     }
@@ -101,7 +102,7 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_ylx_myffmpegproject_NEPlay_releaseNative(JNIEnv *env, jobject thiz) {
     pthread_mutex_lock(&mutex);
-    if(window) {
+    if (window) {
         //把老的释放
         ANativeWindow_release(window);
         window = 0;
@@ -113,15 +114,23 @@ Java_com_ylx_myffmpegproject_NEPlay_releaseNative(JNIEnv *env, jobject thiz) {
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_ylx_myffmpegproject_NEPlay_stopNative(JNIEnv *env, jobject thiz) {
-    if(ffmpeg) {
+    if (ffmpeg) {
         ffmpeg->stop();
     }
 }
+
 extern "C"
 JNIEXPORT jint JNICALL
 Java_com_ylx_myffmpegproject_NEPlay_getDurationNative(JNIEnv *env, jobject thiz) {
-    if(ffmpeg) {
+    if (ffmpeg) {
         return ffmpeg->getDuration();
     }
     return 0;
+}
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_ylx_myffmpegproject_NEPlay_seekToNative(JNIEnv *env, jobject thiz, jint play_progress) {
+    if(ffmpeg) {
+        return ffmpeg->seekTo(play_progress);
+    }
 }

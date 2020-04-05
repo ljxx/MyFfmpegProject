@@ -54,6 +54,7 @@ private:
     AVFormatContext *formatContext = 0;
     RenderCallback renderCallback;
     int duration;
+    pthread_mutex_t seekMutex;
 public:
     int getDuration() const;
 
@@ -61,6 +62,7 @@ public:
     void setDuration(int duration);
     //总播放时长
 
+    void seekTo(int i);
 };
 
 

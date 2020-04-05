@@ -19,6 +19,8 @@ public class MainActivity extends AppCompatActivity {
     private SurfaceView surfaceView;
     private SeekBar seekBar; //进度条-与播放总时长有关系
     private NEPlay player;
+    private boolean isTouch; //释放点击
+    private boolean isSeek; //释放拖动
 
     // Used to load the 'native-lib' library on application startup.
     static {
@@ -78,15 +80,22 @@ public class MainActivity extends AppCompatActivity {
                 //progress:当前的播放进度
                 Log.e("MainActivity", progress + "");
                 //duration
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        int duration = player.getDuration();
-                        if(duration != 0) {
-                            seekBar.setProgress(progress * 100 / duration);
+                //如果没有人为干预进度条，让进度条自然的正常播放
+                if(!isTouch) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            int duration = player.getDuration();
+                            if(duration != 0) {
+                                if(isSeek) {
+                                    isSeek = false;
+                                    return;
+                                }
+                                seekBar.setProgress(progress * 100 / duration);
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         });
 
@@ -101,12 +110,21 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-
+                isTouch = true;
             }
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
+                isSeek = true;
+                isTouch = false;
 
+                //获取seekbar的当前进度（百分比）
+                int seekBarProgresss = seekBar.getProgress();
+                //将seekbar的进度转换成真实的播放进度
+                int duration = player.getDuration();
+                int playProgress = seekBarProgresss * duration / 100;
+                //将播放进度传给底层ffmpeg
+                player.seekTo(playProgress);
             }
         });
 

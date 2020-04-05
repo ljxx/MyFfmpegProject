@@ -17,6 +17,7 @@ NEFFmpeg::NEFFmpeg(JavaCallHelper *javaCallHelper, char *dataSource) {
     //c字符串以 \0 结尾 : "hello\0"
     this->dataSource = new char[strlen(dataSource) + 1];
     stpcpy(this->dataSource, dataSource);
+    pthread_mutex_init(&seekMutex, 0);
 
 }
 
@@ -35,6 +36,7 @@ NEFFmpeg::~NEFFmpeg() {
     //封装后的释放调用
     DELETE(dataSource);
     DELETE(javaCallHelper);
+    pthread_mutex_destroy(&seekMutex);
 }
 
 /**
@@ -268,7 +270,15 @@ void NEFFmpeg::_start() {
         }
 
         AVPacket *packet = av_packet_alloc();
+
+        //安全线程，加锁
+        pthread_mutex_lock(&seekMutex);
+
         int ret = av_read_frame(formatContext, packet);
+
+        //解锁
+        pthread_mutex_unlock(&seekMutex);
+
         if (!ret) { //成功
             //要判断流类型，是视频还是音频
             if (videoChannel && packet->stream_index == videoChannel->id) {
@@ -348,4 +358,67 @@ void NEFFmpeg::stop() {
  */
 int NEFFmpeg::getDuration() const {
     return duration;
+}
+
+void NEFFmpeg::seekTo(int playProgress) {
+
+    //如果最开始，或者最结尾return
+    if(playProgress < 0 || playProgress > duration) {
+        return ;
+    }
+
+    if(!audioChannel && !videoChannel) {
+        return;
+    }
+
+    if(!formatContext) {
+        return;
+    }
+
+    //安全线程，加锁
+    pthread_mutex_lock(&seekMutex);
+
+    /**
+     * 1、上下文
+     * 2、流索引，-1： 表示选择的是默认流
+     * 3、要seek到的时间戳
+     * 4、seek的方式
+     * AVSEEK_FLAG_BACKWARD： 表示seek到请求的时间戳之前的最近的一个关键帧
+     * AVSEEK_FLAG_BYTE: 基于字节的位置seek
+     * AVSEEK_FLAG_ANY：任意帧（可能不是关键帧，会花屏）
+     * AVSEEK_FLAG_FRAME: 基于帧数seek
+     */
+    int ret = av_seek_frame(formatContext, -1, playProgress*AV_TIME_BASE, AVSEEK_FLAG_BACKWARD);
+    if(ret < 0) {
+        if (javaCallHelper) {
+            javaCallHelper->onError(THREAD_CHILD, ret);
+        }
+        return;
+    }
+
+    if(audioChannel) {
+        audioChannel->packets.setWork(0);
+        audioChannel->frames.setWork(0);
+        audioChannel->packets.clear();
+        audioChannel->frames.clear();
+
+        //清除数据后，让队列重新工作
+        audioChannel->packets.setWork(1);
+        audioChannel->frames.setWork(1);
+    }
+
+    if(videoChannel) {
+        videoChannel->packets.setWork(0);
+        videoChannel->frames.setWork(0);
+        videoChannel->packets.clear();
+        videoChannel->frames.clear();
+
+        //清除数据后，让队列重新工作
+        videoChannel->packets.setWork(1);
+        videoChannel->frames.setWork(1);
+    }
+
+    //解锁
+    pthread_mutex_unlock(&seekMutex);
+
 }

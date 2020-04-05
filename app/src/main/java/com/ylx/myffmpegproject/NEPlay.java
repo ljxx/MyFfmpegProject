@@ -116,6 +116,19 @@ public class NEPlay implements SurfaceHolder.Callback {
         stopNative();
     }
 
+    /**
+     * 播放进度跳转
+     * @param playProgress
+     */
+    public void seekTo(final int playProgress) {
+        new Thread(){
+            @Override
+            public void run() {
+                seekToNative(playProgress);
+            }
+        }.start();
+    }
+
     interface MyErrorListener {
         void onError(int errorCode);
     }
@@ -167,4 +180,6 @@ public class NEPlay implements SurfaceHolder.Callback {
     private native void stopNative();
 
     private native int getDurationNative();
+
+    private native void seekToNative(int playProgress);
 }
