@@ -77,7 +77,9 @@ Java_com_ylx_myffmpegproject_NEPlay_startNative(JNIEnv *env, jobject thiz) {
     if(ffmpeg) {
         ffmpeg->start();
     }
-}extern "C"
+}
+
+extern "C"
 JNIEXPORT void JNICALL
 Java_com_ylx_myffmpegproject_NEPlay_setSurfaceNative(JNIEnv *env, jobject instance,
                                                      jobject surface) {
@@ -93,4 +95,25 @@ Java_com_ylx_myffmpegproject_NEPlay_setSurfaceNative(JNIEnv *env, jobject instan
 
     pthread_mutex_unlock(&mutex);
 
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_ylx_myffmpegproject_NEPlay_releaseNative(JNIEnv *env, jobject thiz) {
+    pthread_mutex_lock(&mutex);
+    if(window) {
+        //把老的释放
+        ANativeWindow_release(window);
+        window = 0;
+    }
+    pthread_mutex_unlock(&mutex);
+    DELETE(ffmpeg);
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_ylx_myffmpegproject_NEPlay_stopNative(JNIEnv *env, jobject thiz) {
+    if(ffmpeg) {
+        ffmpeg->stop();
+    }
 }

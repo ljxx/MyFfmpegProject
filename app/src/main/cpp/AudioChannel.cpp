@@ -58,7 +58,45 @@ void AudioChannel::start() {
 
 }
 
+/**
+ * 音频释放
+ */
 void AudioChannel::stop() {
+    isPlaying = 0;
+    //设置队列状态为暂停状态
+    packets.setWork(0);
+    frames.setWork(0);
+    pthread_join(pid_audio_decode, 0);
+    pthread_join(pid_audio_play, 0);
+    if (swrContext) {
+        swr_free(&swrContext);
+        swrContext = 0;
+    }
+
+    /**
+     * 7、音频释放
+     */
+     //7.1 设置播放器为停止状态
+     if(bqPlayerPlay) {
+         (*bqPlayerPlay)->SetPlayState(bqPlayerPlay, SL_PLAYSTATE_STOPPED);
+     }
+     //7.2 销毁播放器
+     if(bqPlayerObject) {
+         (*bqPlayerObject)->Destroy(bqPlayerObject);
+         bqPlayerObject = 0;
+         bqPlayerBufferQueue = 0;
+     }
+     //7.3 销毁混音器
+     if(outputMixObject) {
+         (*outputMixObject)->Destroy(outputMixObject);
+         outputMixObject = 0;
+     }
+     //7.4 销毁引擎
+     if(engineObject) {
+         (*engineObject)->Destroy(engineObject);
+         engineObject = 0;
+         engineInterface = 0;
+     }
 
 }
 

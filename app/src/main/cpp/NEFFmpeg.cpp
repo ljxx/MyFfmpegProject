@@ -59,6 +59,33 @@ void *task_start(void *args) {
 }
 
 /**
+ * 设置为友元函数
+ * @param args
+ * @return
+ */
+void *task_stop(void *args) {
+    NEFFmpeg *ffmpeg = static_cast<NEFFmpeg *>(args);
+//    ffmpeg->_prepare();
+
+    ffmpeg->isPlaying = 0;
+
+    //pthread_join: 这里调用了后会阻塞主线程，可能引发ANR
+    pthread_join(ffmpeg->pid_prepare, 0); //等这个线程执行完
+
+    if(ffmpeg->formatContext) {
+        avformat_close_input(&ffmpeg->formatContext);
+        avformat_free_context(ffmpeg->formatContext);
+        ffmpeg->formatContext = 0;
+    }
+
+    DELETE(ffmpeg->videoChannel);
+    DELETE(ffmpeg->audioChannel);
+    DELETE(ffmpeg);
+
+    return 0; //一定一定一定要返回0！！！ 防止找不到错误
+}
+
+/**
  * 播放准备
  * 可能是主线程
  * ffmpeg源码文件 doc/samples/
@@ -226,7 +253,13 @@ void NEFFmpeg::_start() {
          * 内存泄漏1
          * 控制packets队列
          */
-        if(videoChannel->packets.size() > 100) {
+        if(videoChannel && videoChannel->packets.size() > 100) {
+            av_usleep(10 * 1000);
+            continue;
+        }
+
+        //内存泄漏2 （控制音频packets队列）
+        if(audioChannel && audioChannel->packets.size() > 100) {
             av_usleep(10 * 1000);
             continue;
         }
@@ -246,7 +279,14 @@ void NEFFmpeg::_start() {
         } else if (ret == AVERROR_EOF) {
             //表示读完了
             //要考虑读完了，是否播放完读情况
-            // TODO
+            //如何判断有没有播放完？ 判断队列释放为空
+            if(videoChannel->packets.empty() && videoChannel->frames.empty()
+             && audioChannel->packets.empty() && audioChannel->frames.empty()) {
+                //播放完了，释放
+                av_packet_free(&packet);
+                break;
+            }
+
         } else {
             //失败
             //TODO 作业:反射通知java
@@ -254,6 +294,7 @@ void NEFFmpeg::_start() {
             if(javaCallHelper) {
                 javaCallHelper->onError(THREAD_CHILD, FFMPEG_READ_PACKETS_FAIL);
             }
+            av_packet_free(&packet);
             break;
         } //end if
     } //end while
@@ -267,4 +308,33 @@ void NEFFmpeg::_start() {
 
 void NEFFmpeg::setRenderCallback(RenderCallback renderCallback) {
     this->renderCallback = renderCallback;
+}
+
+/**
+ * 停止播放
+ */
+void NEFFmpeg::stop() {
+//    isPlaying = 0;
+    javaCallHelper = 0; //prepare阻塞中停止老，还是会回调给java
+    //在主线程，要保证prepare(在子线程)方法执行完再释放
+
+    //pthread_join: 这里调用了后会阻塞主线程，可能引发ANR
+//    pthread_join(pid_prepare, 0); //等这个线程执行完
+
+    //既然在主线程会引发ANR，那么就到子线程去释放
+    pthread_create(&pid_stop, 0, task_stop, this); //创建stop子线程
+
+//    if(formatContext) {
+//        avformat_close_input(&formatContext);
+//        avformat_free_context(formatContext);
+//        formatContext = 0;
+//    }
+//    //视频
+//    if (videoChannel) {
+//        videoChannel->stop();
+//    }
+//    //音频
+//    if(audioChannel) {
+//        audioChannel->stop();
+//    }
 }

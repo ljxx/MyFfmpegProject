@@ -42,6 +42,14 @@ public class NEPlay implements SurfaceHolder.Callback {
     }
 
     /**
+     * 资源释放
+     */
+    public void release() {
+        surfaceHolder.removeCallback(this);
+        releaseNative();
+    }
+
+    /**
      * 给JNI回调
      * @param code 通过JNI反射传递过来
      */
@@ -91,6 +99,13 @@ public class NEPlay implements SurfaceHolder.Callback {
 
     }
 
+    /**
+     * 停止播放
+     */
+    public void stop() {
+        stopNative();
+    }
+
     interface MyErrorListener {
         void onError(int errorCode);
     }
@@ -128,4 +143,8 @@ public class NEPlay implements SurfaceHolder.Callback {
     private native void startNative();
 
     private native void setSurfaceNative(Surface surface);
+
+    private native void releaseNative();
+
+    private native void stopNative();
 }
